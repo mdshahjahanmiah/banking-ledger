@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  transaction_ledger:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["./transaction_ledger"]
+    ports:
+      - "3000:3000"
+    environment:
+      POSTGRES_DSN: postgres://ledger:ledgerpass@postgres:5432/ledgerdb?sslmode=disable
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: ledger
+      POSTGRES_PASSWORD: ledgerpass
+      POSTGRES_DB: ledgerdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ledger -d ledgerdb"]
+      interval: 10s
+      retries: 5
+      timeout: 5s
+
+volumes:
+  pgdata:
