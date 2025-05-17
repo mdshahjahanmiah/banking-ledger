@@ -2,7 +2,7 @@ package db
 
 import (
 	"database/sql"
-	_ "github.com/lib/pq"
+	_ "github.com/lib/pq" // Importing the PostgreSQL driver
 	"github.com/mdshahjahanmiah/explore-go/logging"
 	"github.com/pkg/errors"
 	"time"

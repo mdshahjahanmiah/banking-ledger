@@ -17,14 +17,13 @@ const (
 type Account struct {
 	ID        string          `json:"id"`
 	UserID    string          `json:"user_id"`
-	Balance   decimal.Decimal `json:"balance"`  //decimal for precise monetary values
+	Balance   decimal.Decimal `json:"balance"`  // Using decimal for precise monetary values
 	Currency  string          `json:"currency"` // ISO 4217 currency code
 	Status    AccountStatus   `json:"status"`   // Enumerated type for safety
 	CreatedAt time.Time       `json:"created_at"`
 	UpdatedAt time.Time       `json:"updated_at"`
 }
 
-// Validate ensures account data integrity
 func (a *Account) Validate() error {
 	switch a.Status {
 	case AccountStatusActive, AccountStatusSuspended, AccountStatusClosed:

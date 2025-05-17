@@ -13,15 +13,16 @@ import (
 type AccountResponse struct {
 	ID        string `json:"id"`
 	UserID    string `json:"user_id"`
-	Balance   string `json:"balance"`
+	Balance   string `json:"balance"` // Decimal as string
 	Currency  string `json:"currency"`
 	Status    string `json:"status"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	CreatedAt string `json:"created_at"` // ISO8601 timestamp
+	UpdatedAt string `json:"updated_at"` // ISO8601 timestamp
 }
 
 func makePostAccountEndpoint(s Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		// Type assertion with validation
 		req, ok := request.(AccountRequest)
 		if !ok {
 			return nil, eError.NewServiceError(
@@ -46,7 +47,7 @@ func makePostAccountEndpoint(s Service) endpoint.Endpoint {
 		return AccountResponse{
 			ID:        account.ID,
 			UserID:    account.UserID,
-			Balance:   account.Balance.String(),
+			Balance:   account.Balance.String(), // Return as string for precision
 			Currency:  account.Currency,
 			Status:    string(account.Status),
 			CreatedAt: account.CreatedAt.Format(time.RFC3339),
