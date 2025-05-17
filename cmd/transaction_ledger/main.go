@@ -4,9 +4,13 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/mdshahjahanmiah/banking-ledger/model"
 	"github.com/mdshahjahanmiah/banking-ledger/pkg/account"
+	"github.com/mdshahjahanmiah/banking-ledger/pkg/broker"
 	"github.com/mdshahjahanmiah/banking-ledger/pkg/config"
 	"github.com/mdshahjahanmiah/banking-ledger/pkg/db"
+	"github.com/mdshahjahanmiah/banking-ledger/pkg/transaction"
+	"github.com/mdshahjahanmiah/banking-ledger/repository"
 	"github.com/mdshahjahanmiah/explore-go/di"
 	eHttp "github.com/mdshahjahanmiah/explore-go/http"
 	"github.com/mdshahjahanmiah/explore-go/logging"
@@ -90,6 +94,14 @@ func main() {
 		return database, nil
 	})
 
+	c.Provide(func(conf config.Config) (*db.MongoDB, error) {
+		return db.NewMongoDB(conf)
+	})
+
+	c.Provide(func(mongo *db.MongoDB) *repository.Repository[model.Transaction] {
+		return repository.NewMongoRepository[model.Transaction](mongo.Client, "ledger", "transactions")
+	})
+
 	c.Provide(func(config config.Config) *eHttp.ServerConfig {
 		return &eHttp.ServerConfig{
 			HttpAddress: config.HttpAddress,
@@ -101,8 +113,23 @@ func main() {
 		return service, nil
 	})
 
+	//Kafka
+	c.Provide(func(conf config.Config) broker.Producer {
+		return broker.NewKafkaProducer("kafka:9092", "transactions") // Replace with your Kafka broker address
+	})
+
+	c.Provide(func(conf config.Config, logger *logging.Logger, db *db.DB, repo *repository.Repository[model.Transaction], producer broker.Producer) (transaction.Service, error) {
+		service, err := transaction.NewService(conf, logger, db, repo, producer)
+		if err != nil {
+			logger.Error("initializing transaction service", "err", err)
+			return nil, err
+		}
+		return service, nil
+	})
+
 	c.ProvideMonitoringEndpoints("endpoint")
 	c.Provide(account.MakeHandler, dig.Group("endpoint"))
+	c.Provide(transaction.MakeHandler, dig.Group("endpoint"))
 
 	c.Invoke(func(in struct {
 		dig.In
