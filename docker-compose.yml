@@ -1,0 +1,99 @@
+services:
+  transaction_ledger:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["./transaction_ledger"]
+    ports:
+      - "3000:3000"
+    environment:
+      POSTGRES_DSN: postgres://ledger:ledgerpass@postgres:5432/ledgerdb?sslmode=disable
+      KAFKA_BROKER_URL: kafka:9092
+      MONGO_URI: mongodb://mongo:27017
+    depends_on:
+      - postgres
+      - kafka
+      - zookeeper
+      - mongo
+    restart: unless-stopped
+
+  transaction_processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["./transaction_processor"]
+    environment:
+      POSTGRES_DSN: postgres://ledger:ledgerpass@postgres:5432/ledgerdb?sslmode=disable
+      KAFKA_BROKER_URL: kafka:9092
+      MONGO_URI: mongodb://mongo:27017
+    depends_on:
+      - postgres
+      - kafka
+      - mongo
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:6
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    restart: unless-stopped
+    volumes:
+      - mongodata:/data/db
+
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: ledger
+      POSTGRES_PASSWORD: ledgerpass
+      POSTGRES_DB: ledgerdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ledger -d ledgerdb"]
+      interval: 10s
+      retries: 5
+      timeout: 5s
+
+  zookeeper:
+    image: bitnami/zookeeper:latest
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ALLOW_ANONYMOUS_LOGIN: "yes"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "echo ruok | nc localhost 2181"]
+      interval: 10s
+      retries: 5
+      timeout: 5s
+
+  kafka:
+    image: bitnami/kafka:2.8.1
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CFG_ZOOKEEPER_CONNECT: zookeeper:2181
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_CREATE_TOPICS: "transactions:1:1,transactions-dlq:1:1"
+    depends_on:
+      - zookeeper
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "kafka-topics.sh", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 15s
+      retries: 5
+      timeout: 10s
+
+volumes:
+  pgdata:
+  mongodata:
