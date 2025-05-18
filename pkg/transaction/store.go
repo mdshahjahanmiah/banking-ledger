@@ -10,28 +10,8 @@ import (
 	"time"
 )
 
-var (
-	ErrDuplicateTransaction   = errors.New("duplicate transaction")
-	ErrAccountNotFound        = errors.New("account not found")
-	ErrAccountNotActive       = errors.New("account not active")
-	ErrInvalidAmount          = errors.New("invalid amount")
-	ErrInsufficientFunds      = errors.New("insufficient funds")
-	ErrInvalidTransactionType = errors.New("invalid transaction type")
-)
-
-const (
-	TransactionTypeDeposit    = "deposit"
-	TransactionTypeWithdrawal = "withdrawal"
-
-	TransactionStatusPending   = "pending"
-	TransactionStatusCompleted = "completed"
-	TransactionStatusFailed    = "failed"
-)
-
 type Store interface {
 	ProcessTransaction(ctx context.Context, txn model.Transaction) error
-	GetCurrentBalance(ctx context.Context, accountID string) (decimal.Decimal, error)
-	GetAccount(ctx context.Context, accountID string) (model.Account, error)
 }
 
 type store struct {
@@ -51,7 +31,9 @@ func (s *store) ProcessTransaction(ctx context.Context, txn model.Transaction) e
 
 	// Idempotency Checking for existing transaction
 	var existingID string
-	err = tx.QueryRowContext(ctx, `SELECT id FROM transactions WHERE reference_id = $1`, txn.ReferenceID).Scan(&existingID)
+	err = tx.QueryRowContext(ctx,
+		`SELECT id FROM transactions WHERE reference_id = $1 AND currency = $2`, txn.ReferenceID, txn.Currency,
+	).Scan(&existingID)
 
 	if err == nil {
 		return ErrDuplicateTransaction
@@ -86,12 +68,12 @@ func (s *store) ProcessTransaction(ctx context.Context, txn model.Transaction) e
 	newBalance := account.Balance
 	switch txn.Type {
 	case TransactionTypeDeposit:
-		newBalance = newBalance.Add(txn.Amount)
+		newBalance = newBalance.Add(txn.Amount.Unwrap())
 	case TransactionTypeWithdrawal:
-		if account.Balance.LessThan(txn.Amount) {
+		if account.Balance.LessThan(txn.Amount.Unwrap()) {
 			return ErrInsufficientFunds
 		}
-		newBalance = newBalance.Sub(txn.Amount)
+		newBalance = newBalance.Sub(txn.Amount.Unwrap())
 	default:
 		return ErrInvalidTransactionType
 	}
@@ -105,10 +87,10 @@ func (s *store) ProcessTransaction(ctx context.Context, txn model.Transaction) e
 	// Creating transaction record
 	_, err = tx.ExecContext(ctx,
 		`INSERT INTO transactions 
-		(id, account_id, amount, type, reference_id, status, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		(id, account_id, amount, type, reference_id, currency, status, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 		txn.ID, txn.AccountID, txn.Amount, txn.Type,
-		txn.ReferenceID, TransactionStatusCompleted, time.Now().UTC(),
+		txn.ReferenceID, txn.Currency, TransactionStatusCompleted, time.Now().UTC(),
 	)
 	if err != nil {
 		return errors.Wrap(err, "failed to create transaction record")
@@ -118,29 +100,4 @@ func (s *store) ProcessTransaction(ctx context.Context, txn model.Transaction) e
 		return errors.Wrap(err, "transaction commit failed")
 	}
 	return nil
-}
-
-func (s *store) GetCurrentBalance(ctx context.Context, accountID string) (decimal.Decimal, error) {
-	var balance decimal.Decimal
-	err := s.db.DB.QueryRowContext(ctx,
-		`SELECT balance FROM accounts WHERE id = $1`, accountID,
-	).Scan(&balance)
-
-	if err != nil {
-		return decimal.Zero, errors.Wrap(err, "failed to get current balance")
-	}
-	return balance, nil
-}
-
-func (s *store) GetAccount(ctx context.Context, accountID string) (model.Account, error) {
-	var account model.Account
-	err := s.db.DB.QueryRowContext(ctx,
-		`SELECT id, user_id, balance, currency, status FROM accounts WHERE id = $1`,
-		accountID,
-	).Scan(&account.ID, &account.UserID, &account.Balance, &account.Currency, &account.Status)
-
-	if err != nil {
-		return model.Account{}, errors.Wrap(err, "account not found")
-	}
-	return account, nil
 }

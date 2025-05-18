@@ -6,9 +6,21 @@ import (
 	"github.com/mdshahjahanmiah/banking-ledger/model"
 	"github.com/mdshahjahanmiah/banking-ledger/pkg/config"
 	"github.com/mdshahjahanmiah/banking-ledger/pkg/db"
+	eError "github.com/mdshahjahanmiah/explore-go/error"
 	"github.com/mdshahjahanmiah/explore-go/logging"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
+	"net/http"
+	"strings"
+)
+
+const (
+	ErrDuplicateAccountCode = "DUPLICATE_ACCOUNT"
+	ErrDuplicateAccountMsg  = "account already exists for this user and currency"
+)
+
+var (
+	ErrInvalidAccount = errors.New("invalid account")
 )
 
 type Service interface {
@@ -52,7 +64,13 @@ func (s *service) CreateAccount(ctx context.Context, req CreateAccountRequest) (
 
 	// Store in database
 	if err := s.store.Insert(ctx, account); err != nil {
-		s.logger.Error("failed to create account", "error", err)
+		s.logger.Error("failed to create account", "account_id", account.ID, "error", err)
+
+		// Unique constraint violation
+		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
+			return nil, eError.NewServiceError(err, ErrDuplicateAccountMsg, ErrDuplicateAccountCode, http.StatusConflict)
+		}
+
 		return nil, errors.Wrap(err, "failed to create account")
 	}
 

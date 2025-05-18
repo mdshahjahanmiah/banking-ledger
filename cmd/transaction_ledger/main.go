@@ -4,22 +4,24 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/joho/godotenv"
 	"github.com/mdshahjahanmiah/banking-ledger/model"
 	"github.com/mdshahjahanmiah/banking-ledger/pkg/account"
 	"github.com/mdshahjahanmiah/banking-ledger/pkg/broker"
 	"github.com/mdshahjahanmiah/banking-ledger/pkg/config"
 	"github.com/mdshahjahanmiah/banking-ledger/pkg/db"
 	"github.com/mdshahjahanmiah/banking-ledger/pkg/transaction"
-	"github.com/mdshahjahanmiah/banking-ledger/repository"
 	"github.com/mdshahjahanmiah/explore-go/di"
 	eHttp "github.com/mdshahjahanmiah/explore-go/http"
 	"github.com/mdshahjahanmiah/explore-go/logging"
+	"github.com/mdshahjahanmiah/explore-go/repository"
 	"go.uber.org/dig"
 	"log/slog"
 )
 
 func main() {
 	slog.Info("transaction ledger service is starting...")
+	godotenv.Load() // loads .env into os.Getenv if present
 	c := di.New()
 
 	c.Provide(func() (config.Config, error) {
@@ -47,8 +49,6 @@ func main() {
 
 	// PostgreSQL connection + migrations (modified section)
 	c.Provide(func(conf config.Config, logger *logging.Logger) (*db.DB, error) {
-		slog.Info("PostgresDSN", "dsn", conf.PostgresDSN)
-
 		// Initialize DB connection
 		database, err := db.NewDB(conf.PostgresDSN, logger)
 		if err != nil {
@@ -61,6 +61,7 @@ func main() {
 			"file://migrations",
 			conf.PostgresDSN,
 		)
+
 		if err != nil {
 			logger.Error("migration init failed", "err", err.Error())
 			return nil, err
@@ -68,6 +69,7 @@ func main() {
 
 		// Check current version and handle dirty state
 		version, dirty, verErr := m.Version()
+		logger.Info("Before migration", "version", version, "dirty", dirty)
 		if verErr != nil && verErr != migrate.ErrNilVersion {
 			logger.Error("failed to check migration version", "err", verErr.Error())
 			return nil, verErr
@@ -89,6 +91,9 @@ func main() {
 			logger.Error("migration run failed", "err", err.Error())
 			return nil, err
 		}
+
+		version, dirty, verErr = m.Version()
+		logger.Info("After migration", "version", version, "dirty", dirty)
 
 		logger.Info("database migration completed successfully")
 		return database, nil
@@ -128,7 +133,9 @@ func main() {
 	})
 
 	c.ProvideMonitoringEndpoints("endpoint")
+
 	c.Provide(account.MakeHandler, dig.Group("endpoint"))
+
 	c.Provide(transaction.MakeHandler, dig.Group("endpoint"))
 
 	c.Invoke(func(in struct {
