@@ -9,18 +9,12 @@ import (
 	"github.com/mdshahjahanmiah/banking-ledger/pkg/transaction"
 	"github.com/mdshahjahanmiah/explore-go/logging"
 	"github.com/mdshahjahanmiah/explore-go/repository"
-	"math/rand"
-	"time"
-
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 )
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
 func main() {
 	slog.Info("transaction processor is starting...")
 

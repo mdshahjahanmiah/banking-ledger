@@ -4,7 +4,6 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/joho/godotenv"
 	"github.com/mdshahjahanmiah/banking-ledger/model"
 	"github.com/mdshahjahanmiah/banking-ledger/pkg/account"
 	"github.com/mdshahjahanmiah/banking-ledger/pkg/broker"
@@ -21,7 +20,10 @@ import (
 
 func main() {
 	slog.Info("transaction ledger service is starting...")
-	godotenv.Load() // loads .env into os.Getenv if present
+
+	// loads .env into os.Getenv if present and for local development
+	//godotenv.Load()
+
 	c := di.New()
 
 	c.Provide(func() (config.Config, error) {
@@ -47,7 +49,7 @@ func main() {
 
 	slog.Info("logger is initialized successfully")
 
-	// PostgreSQL connection + migrations (modified section)
+	// PostgresSQL connection + migrations (modified section)
 	c.Provide(func(conf config.Config, logger *logging.Logger) (*db.DB, error) {
 		// Initialize DB connection
 		database, err := db.NewDB(conf.PostgresDSN, logger)
@@ -92,7 +94,7 @@ func main() {
 			return nil, err
 		}
 
-		version, dirty, verErr = m.Version()
+		version, dirty, _ = m.Version()
 		logger.Info("After migration", "version", version, "dirty", dirty)
 
 		logger.Info("database migration completed successfully")
@@ -118,7 +120,7 @@ func main() {
 		return service, nil
 	})
 
-	//Kafka
+	//Kafka Initialization
 	c.Provide(func(conf config.Config) broker.Producer {
 		return broker.NewKafkaProducer("kafka:9092", "transactions") // Replace with your Kafka broker address
 	})
@@ -148,9 +150,9 @@ func main() {
 		c.Provide(func() di.StartCloser { return server }, dig.Group("startclose"))
 	})
 
-	err := c.Start()
-	if err != nil {
-		slog.Error("failed to start server", "err", err)
+	eRR := c.Start()
+	if eRR != nil {
+		slog.Error("failed to start server", "err", eRR)
 		return
 	}
 }
