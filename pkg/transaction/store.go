@@ -7,6 +7,7 @@ import (
 	"github.com/mdshahjahanmiah/banking-ledger/pkg/db"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
+	"log/slog"
 	"time"
 )
 
@@ -27,7 +28,12 @@ func (s *store) ProcessTransaction(ctx context.Context, txn model.Transaction) e
 	if err != nil {
 		return errors.Wrap(err, "failed to begin transaction")
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			// Log rollback error if needed; usually tx.ErrTxDone means commit already happened
+			slog.Error("rollback failed", "error", err)
+		}
+	}()
 
 	// Idempotency Checking for existing transaction
 	var existingID string

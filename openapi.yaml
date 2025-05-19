@@ -1,0 +1,397 @@
+openapi: 3.0.0
+info:
+  title: Banking Ledger API
+  description: |
+    Endpoints to allow external interaction, including creating accounts, processing transactions, and retrieving transaction history
+  version: 1.0.0
+  contact:
+    name: Miah Md Shahjahan
+    email: shahjahan@smiah.dev
+
+tags:
+  - name: Accounts
+  - name: Transactions
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+components:
+  schemas:
+    ErrorItem:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique error identifier
+          example: "err_123456"
+        status:
+          type: integer
+          description: HTTP status code
+          example: 400
+        code:
+          type: string
+          description: Error code message
+          example: "amount must be greater than zero"
+        source:
+          type: object
+          properties:
+            field:
+              type: string
+              description: Error field identifier
+              example: "INVALID_AMOUNT"
+            message:
+              type: string
+              description: Detailed error message
+              example: "amount must be positive"
+          required:
+            - field
+            - message
+      required:
+        - status
+        - code
+        - source
+
+    ErrorResponse:
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorItem'
+      required:
+        - errors
+
+    Account:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique account identifier
+        user_id:
+          type: string
+          description: Unique user identifier
+        balance:
+          type: string
+          format: decimal
+          description: Current account balance
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          description: Three-letter currency code (e.g., USD, EUR)
+        status:
+          type: string
+          enum: [active, inactive, frozen]
+          description: Account status
+        created_at:
+          type: string
+          format: date-time
+          description: Account creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+      required:
+        - id
+        - user_id
+        - balance
+        - currency
+        - status
+        - created_at
+        - updated_at
+
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique transaction identifier
+        account_id:
+          type: string
+          format: uuid
+          description: Associated account identifier
+        amount:
+          type: string
+          format: decimal
+          description: Transaction amount
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          description: Three-letter currency code
+        type:
+          type: string
+          enum: [deposit, withdrawal]
+          description: Transaction type
+        status:
+          type: string
+          enum: [pending, completed, failed]
+          description: Transaction status
+        reference_id:
+          type: string
+          description: External reference identifier
+        created_at:
+          type: string
+          format: date-time
+          description: Transaction creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+      required:
+        - id
+        - account_id
+        - amount
+        - currency
+        - type
+        - status
+        - created_at
+        - updated_at
+
+    CreateAccountRequest:
+      type: object
+      properties:
+        user_id:
+          type: string
+          description: Unique user identifier
+        initial_balance:
+          type: number
+          minimum: 10.00
+          description: Initial account balance (minimum 10.00 required)
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          description: Three-letter currency code
+      required:
+        - user_id
+        - initial_balance
+        - currency
+
+    TransactionRequest:
+      type: object
+      properties:
+        account_id:
+          type: string
+          format: uuid
+          description: Target account identifier
+        amount:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+          description: Transaction amount
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          description: Three-letter currency code
+        reference_id:
+          type: string
+          description: External reference identifier
+      required:
+        - account_id
+        - amount
+        - currency
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalidAmount:
+              value:
+                errors:
+                  - id: "err_123456"
+                    status: 400
+                    code: "amount must be greater than minimum required"
+                    source:
+                      field: "INVALID_AMOUNT"
+                      message: "initial balance must be at least 10.00"
+            missingCurrency:
+              value:
+                errors:
+                  - id: "err_123457"
+                    status: 400
+                    code: "currency is required"
+                    source:
+                      field: "MISSING_CURRENCY"
+                      message: "currency field is required"
+            invalidAccount:
+              value:
+                errors:
+                  - id: "err_123458"
+                    status: 400
+                    code: "invalid account"
+                    source:
+                      field: "INVALID_ACCOUNT"
+                      message: "account validation failed"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            accountNotFound:
+              value:
+                errors:
+                  - id: "err_123459"
+                    status: 404
+                    code: "account not found"
+                    source:
+                      field: "ACCOUNT_NOT_FOUND"
+                      message: "account with specified ID does not exist"
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            duplicateAccount:
+              summary: Account already exists
+              value:
+                errors:
+                  - id: "err_123460"
+                    status: 409
+                    code: "DUPLICATE_ACCOUNT"
+                    source:
+                      field: "account"
+                      message: "An account already exists for user 'user_123' with currency 'USD'"
+            insufficientFunds:
+              summary: Insufficient balance for withdrawal
+              value:
+                errors:
+                  - id: "err_123461"
+                    status: 409
+                    code: "INSUFFICIENT_FUNDS"
+                    source:
+                      field: "balance"
+                      message: "Account 'acc_123' has insufficient balance. Required: 1000.00 USD, Available: 500.00 USD"
+            transactionInProgress:
+              summary: Concurrent transaction attempt
+              value:
+                errors:
+                  - id: "err_123462"
+                    status: 409
+                    code: "TRANSACTION_IN_PROGRESS"
+                    source:
+                      field: "transaction"
+                      message: "Transaction 'txn_123' is currently being processed for account 'acc_123'. Please try again in a few seconds."
+            accountFrozen:
+              summary: Account is frozen
+              value:
+                errors:
+                  - id: "err_123463"
+                    status: 409
+                    code: "ACCOUNT_FROZEN"
+                    source:
+                      field: "status"
+                      message: "Account 'acc_123' is frozen and cannot process transactions. Contact support for assistance."
+            concurrentModification:
+              summary: Concurrent modification attempt
+              value:
+                errors:
+                  - id: "err_123464"
+                    status: 409
+                    code: "CONCURRENT_MODIFICATION"
+                    source:
+                      field: "version"
+                      message: "The account has been modified by another request. Please refresh and try again."
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            serverError:
+              summary: Internal server error
+              value:
+                errors:
+                  - id: "err_123465"
+                    status: 500
+                    code: "INTERNAL_SERVER_ERROR"
+                    source:
+                      field: "server"
+                      message: "An unexpected error occurred. Please try again later."
+
+paths:
+  /accounts:
+    post:
+      tags:
+        - Accounts
+      summary: Create a new account
+      description: Creates a new bank account for a user
+      operationId: createAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAccountRequest'
+      responses:
+        '201':
+          description: Account created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /accounts/deposit:
+    post:
+      tags:
+        - Transactions
+      summary: Deposit funds
+      description: Deposits funds into an account
+      operationId: depositFunds
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionRequest'
+      responses:
+        '200':
+          description: Deposit processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /accounts/withdraw:
+    post:
+      tags:
+        - Transactions
+      summary: Withdraw funds
+      description: Withdraws funds from an account
+      operationId: withdrawFunds
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref:
