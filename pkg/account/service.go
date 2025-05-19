@@ -15,8 +15,11 @@ import (
 )
 
 const (
-	ErrDuplicateAccountCode = "DUPLICATE_ACCOUNT"
-	ErrDuplicateAccountMsg  = "account already exists for this user and currency"
+	ErrDuplicateAccountCode = "DUPLICATE_ACCOUNT_ERROR"
+	ErrInternalServerCode   = "INTERNAL_SERVER_ERROR"
+
+	ErrDuplicateAccountMsg = "account already exists for this user and currency"
+	ErrInternalServerMsg   = "Internal server error. Please try again later."
 )
 
 var (

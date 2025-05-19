@@ -34,15 +34,16 @@ func (s *store) Insert(ctx context.Context, a *model.Account) error {
 		a.ID, a.UserID, a.Balance, a.Currency, a.Status,
 	).Scan(&a.CreatedAt, &a.UpdatedAt)
 
-	if pgErr, ok := err.(*pq.Error); ok {
-		// PostgresSQL unique violation code
-		if pgErr.Code == "23505" {
-			return eError.NewServiceError(err, ErrDuplicateAccountMsg, ErrDuplicateAccountCode, http.StatusConflict)
-		}
-	}
-
 	if err != nil {
-		return errors.Wrap(err, "failed to create account")
+		// PostgreSQL unique violation
+		if pgErr, ok := err.(*pq.Error); ok {
+			if pgErr.Code == "23505" {
+				return eError.NewServiceError(err, ErrDuplicateAccountMsg, ErrDuplicateAccountCode, http.StatusConflict)
+			}
+		}
+
+		// Other unexpected errors
+		return eError.NewServiceError(err, ErrInternalServerMsg, ErrInternalServerCode, http.StatusInternalServerError)
 	}
 
 	return nil
