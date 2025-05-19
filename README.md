@@ -85,7 +85,7 @@ docker exec -it kafka kafka-topics.sh \
    make test
    ```
 
-## 📦 Service Configuration
+## Service Configuration
 
 The services are configured through environment variables:
 
@@ -95,7 +95,7 @@ The services are configured through environment variables:
 
 Default values are set in the `docker-compose.yml` file.
 
-## 🧪 Testing
+## Testing
 
 The project uses multiple testing approaches:
 
