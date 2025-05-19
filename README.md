@@ -33,7 +33,7 @@ The service consists of two main components:
 
 - Docker and Docker Compose
 - Go 1.23.5 or later
-- 
+
 ### Kafka Topic Initialization
 
 During initialization, the following two Kafka topics will be created:
